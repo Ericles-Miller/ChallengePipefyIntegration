@@ -8,6 +8,7 @@ import (
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/models"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/repositories"
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
+	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,11 +18,12 @@ type ClientService interface {
 }
 
 type clientService struct {
-	repo repositories.ClientRepository
+	repo   repositories.ClientRepository
+	pipefy pipefy.PipefyClient
 }
 
-func NewClientService(repo repositories.ClientRepository) ClientService {
-	return &clientService{repo: repo}
+func NewClientService(repo repositories.ClientRepository, pipefy pipefy.PipefyClient) ClientService {
+	return &clientService{repo: repo, pipefy: pipefy}
 }
 
 func (s *clientService) CreateClient(ctx context.Context, req models.CreateClientRequest) (*models.ClientResponse, error) {
@@ -34,7 +36,16 @@ func (s *clientService) CreateClient(ctx context.Context, req models.CreateClien
 		return nil, AppError.New(fmt.Sprintf("client with email '%s' already exists", req.Email), AppError.ErrBadRequest)
 	}
 
-	return s.repo.Create(ctx, req)
+	client, err := s.repo.Create(ctx, req)
+	if err != nil {
+		return nil, AppError.New("failed to create client", AppError.ErrInternalServer)
+	}
+
+	if _, err := s.pipefy.CreateCard(ctx, req.Name, req.Email, req.RequestType, req.PatrimonyValue); err != nil {
+		return nil, AppError.New("failed to create Pipefy card", AppError.ErrInternalServer)
+	}
+
+	return client, nil
 }
 
 func (s *clientService) GetByEmail(ctx context.Context, email string) (*models.ClientResponse, error) {
