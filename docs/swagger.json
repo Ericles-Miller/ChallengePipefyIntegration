@@ -46,6 +46,12 @@
                             "$ref": "#/definitions/pkg.Response-models_ClientResponse"
                         }
                     },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_ClientResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -73,6 +79,58 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/pipefy/card-updated": {
+            "post": {
+                "description": "Receives a webhook event from Pipefy, applies priority rules and updates the client status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Process Pipefy card update event",
+                "parameters": [
+                    {
+                        "description": "Webhook event data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.WebhookEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Processed",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_WebhookEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or duplicate event",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_WebhookEventResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Client not found",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_WebhookEventResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_WebhookEventResponse"
                         }
                     }
                 }
@@ -138,16 +196,66 @@
             ],
             "properties": {
                 "cliente_email": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "cliente_nome": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "tipo_solicitacao": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "valor_patrimonio": {
-                    "type": "number"
+                    "type": "number",
+                    "maximum": 9999999999999
+                }
+            }
+        },
+        "models.WebhookEventRequest": {
+            "type": "object",
+            "required": [
+                "card_id",
+                "cliente_email",
+                "event_id",
+                "timestamp"
+            ],
+            "properties": {
+                "card_id": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "cliente_email": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "event_id": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.WebhookEventResponse": {
+            "type": "object",
+            "properties": {
+                "cliente_email": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "string"
+                },
+                "prioridade": {
+                    "$ref": "#/definitions/models.ClientPriority"
+                },
+                "processed_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.ClientStatus"
                 }
             }
         },
@@ -156,6 +264,17 @@
             "properties": {
                 "data": {
                     "$ref": "#/definitions/models.ClientResponse"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "pkg.Response-models_WebhookEventResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/models.WebhookEventResponse"
                 },
                 "error": {
                     "type": "string"

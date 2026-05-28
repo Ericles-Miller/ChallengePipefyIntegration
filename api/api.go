@@ -14,6 +14,7 @@ func NewServer(pool *pgxpool.Pool) *gin.Engine {
 	router.GET("/health", healthHandler)
 
 	buildClientController(pool).RegisterRoutes(router)
+	buildWebhookController(pool).RegisterRoutes(router)
 
 	return router
 }

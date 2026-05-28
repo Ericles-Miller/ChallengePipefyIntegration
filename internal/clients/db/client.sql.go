@@ -7,6 +7,8 @@ package clientdb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createClient = `-- name: CreateClient :one
@@ -50,6 +52,36 @@ SELECT id, name, email, request_type, patrimony_value, status, priority, created
 
 func (q *Queries) GetClientByEmail(ctx context.Context, email string) (Client, error) {
 	row := q.db.QueryRow(ctx, getClientByEmail, email)
+	var i Client
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.RequestType,
+		&i.PatrimonyValue,
+		&i.Status,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateClientStatusAndPriority = `-- name: UpdateClientStatusAndPriority :one
+UPDATE clients
+SET status = $1, priority = $2, updated_at = NOW()
+WHERE email = $3
+RETURNING id, name, email, request_type, patrimony_value, status, priority, created_at, updated_at
+`
+
+type UpdateClientStatusAndPriorityParams struct {
+	Status   string      `json:"status"`
+	Priority pgtype.Text `json:"priority"`
+	Email    string      `json:"email"`
+}
+
+func (q *Queries) UpdateClientStatusAndPriority(ctx context.Context, arg UpdateClientStatusAndPriorityParams) (Client, error) {
+	row := q.db.QueryRow(ctx, updateClientStatusAndPriority, arg.Status, arg.Priority, arg.Email)
 	var i Client
 	err := row.Scan(
 		&i.ID,
