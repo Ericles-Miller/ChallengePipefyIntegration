@@ -4,22 +4,23 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-gonic/gin"
+	"github.com/Ericles-Miller/ChallengePipefyIntegration/api"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	r := gin.Default()
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file found, using environment variables")
+	}
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
+	server := api.NewServer()
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	if err := r.Run(":" + port); err != nil {
+	if err := server.Run(":" + port); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
 }
