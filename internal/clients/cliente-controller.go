@@ -42,7 +42,7 @@ func (c *ClientController) CreateClient(ctx *gin.Context) {
 	var req models.CreateClientRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, pkg.Fail[*models.ClientResponse]("invalid request body"))
+		ctx.JSON(http.StatusBadRequest, pkg.Fail[*models.ClientResponse](pkg.ParseValidationErrors(err)))
 		return
 	}
 
