@@ -2,19 +2,18 @@
 // versions:
 //   sqlc v1.31.1
 
-package clientdb
+package webhookdb
 
 import (
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Client struct {
-	ID             uuid.UUID          `json:"id"`
+	ID             pgtype.UUID        `json:"id"`
 	Name           string             `json:"name"`
 	Email          string             `json:"email"`
 	RequestType    string             `json:"request_type"`
-	PatrimonyValue float64            `json:"patrimony_value"`
+	PatrimonyValue pgtype.Numeric     `json:"patrimony_value"`
 	Status         string             `json:"status"`
 	Priority       pgtype.Text        `json:"priority"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
