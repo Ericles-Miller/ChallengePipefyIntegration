@@ -6,11 +6,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
-	_ "github.com/Ericles-Miller/ChallengePipefyIntegration/docs"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/api"
+	_ "github.com/Ericles-Miller/ChallengePipefyIntegration/docs"
+	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/database"
 	"github.com/joho/godotenv"
 )
 
@@ -19,11 +21,23 @@ func main() {
 		log.Println("no .env file found, using environment variables")
 	}
 
-	server := api.NewServer()
+	ctx := context.Background()
+
+	pool, err := database.ConnectDB(ctx)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
+	defer pool.Close()
+
+	if err := database.RunMigrations(pool); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
+
+	server := api.NewServer(pool)
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		log.Fatalf("PORT environment variable not set")
 	}
 
 	if err := server.Run(":" + port); err != nil {
