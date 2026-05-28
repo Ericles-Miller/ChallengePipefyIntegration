@@ -9,6 +9,7 @@ import (
 	webhookModels "github.com/Ericles-Miller/ChallengePipefyIntegration/internal/webhooks/models"
 	webhookRepositories "github.com/Ericles-Miller/ChallengePipefyIntegration/internal/webhooks/repositories"
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
+	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,10 +22,11 @@ type WebhookService interface {
 type webhookService struct {
 	webhookRepo webhookRepositories.WebhookRepository
 	clientRepo  clientRepositories.ClientRepository
+	pipefy      pipefy.PipefyClient
 }
 
-func NewWebhookService(webhookRepo webhookRepositories.WebhookRepository, clientRepo clientRepositories.ClientRepository) WebhookService {
-	return &webhookService{webhookRepo: webhookRepo, clientRepo: clientRepo}
+func NewWebhookService(webhookRepo webhookRepositories.WebhookRepository, clientRepo clientRepositories.ClientRepository, pipefy pipefy.PipefyClient) WebhookService {
+	return &webhookService{webhookRepo: webhookRepo, clientRepo: clientRepo, pipefy: pipefy}
 }
 
 func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.WebhookEventRequest) (*webhookModels.WebhookEventResponse, error) {
@@ -50,6 +52,14 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 	updatedClient, err := s.clientRepo.UpdateClient(ctx, req.ClientEmail, clientModels.StatusProcessed, priority)
 	if err != nil {
 		return nil, AppError.New("failed to update client", AppError.ErrInternalServer)
+	}
+
+	if err := s.pipefy.MoveCardToProcessed(ctx, req.CardID); err != nil {
+		return nil, AppError.New("failed to move Pipefy card to phase", AppError.ErrInternalServer)
+	}
+
+	if err := s.pipefy.UpdateCardField(ctx, req.CardID, pipefy.FieldPriority, string(priority)); err != nil {
+		return nil, AppError.New("failed to update Pipefy card priority", AppError.ErrInternalServer)
 	}
 
 	event, err := s.webhookRepo.InsertEvent(ctx, req.EventID, req.CardID, req.ClientEmail)
