@@ -1,0 +1,25 @@
+services:
+
+  db:
+    image: postgres:15.3-alpine
+    container_name: challenge-pipefy-db
+    restart: on-failure
+    stop_signal: SIGINT
+    stop_grace_period: 1m
+    init: true
+    environment:
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_USER: myuser
+      POSTGRES_DB: challenge_pipefy
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d challenge_pipefy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
