@@ -1,4 +1,61 @@
 basePath: /
+definitions:
+  models.ClientPriority:
+    enum:
+    - prioridade_alta
+    - prioridade_normal
+    type: string
+    x-enum-varnames:
+    - PriorityHigh
+    - PriorityNormal
+  models.ClientResponse:
+    properties:
+      cliente_email:
+        type: string
+      cliente_nome:
+        type: string
+      id:
+        type: string
+      prioridade:
+        $ref: '#/definitions/models.ClientPriority'
+      status:
+        $ref: '#/definitions/models.ClientStatus'
+      tipo_solicitacao:
+        type: string
+      valor_patrimonio:
+        type: number
+    type: object
+  models.ClientStatus:
+    enum:
+    - Aguardando Análise
+    - Processado
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusProcessed
+  models.CreateClientRequest:
+    properties:
+      cliente_email:
+        type: string
+      cliente_nome:
+        type: string
+      tipo_solicitacao:
+        type: string
+      valor_patrimonio:
+        type: number
+    required:
+    - cliente_email
+    - cliente_nome
+    - tipo_solicitacao
+    - valor_patrimonio
+    type: object
+  pkg.Response-models_ClientResponse:
+    properties:
+      data:
+        $ref: '#/definitions/models.ClientResponse'
+      error:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -6,6 +63,36 @@ info:
   title: ChallengePipefyIntegration API
   version: "1.0"
 paths:
+  /clientes:
+    post:
+      consumes:
+      - application/json
+      description: Creates a client and maps it to a Pipefy card
+      parameters:
+      - description: Client data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateClientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/pkg.Response-models_ClientResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/pkg.Response-models_ClientResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/pkg.Response-models_ClientResponse'
+      summary: Create a new client
+      tags:
+      - clients
   /health:
     get:
       description: Returns ok if the server is running
