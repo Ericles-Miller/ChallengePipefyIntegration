@@ -1,0 +1,24 @@
+basePath: /
+host: localhost:8080
+info:
+  contact: {}
+  description: API for ChallengePipefyIntegration
+  title: ChallengePipefyIntegration API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns ok if the server is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+swagger: "2.0"

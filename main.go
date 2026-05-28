@@ -1,9 +1,15 @@
+// @title           ChallengePipefyIntegration API
+// @version         1.0
+// @description     API for ChallengePipefyIntegration
+// @host            localhost:8080
+// @BasePath        /
 package main
 
 import (
 	"log"
 	"os"
 
+	_ "github.com/Ericles-Miller/ChallengePipefyIntegration/docs"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/api"
 	"github.com/joho/godotenv"
 )
