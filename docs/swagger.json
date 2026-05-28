@@ -9,6 +9,52 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
+        "/clientes": {
+            "post": {
+                "description": "Creates a client and maps it to a Pipefy card",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Create a new client",
+                "parameters": [
+                    {
+                        "description": "Client data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_ClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_ClientResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_ClientResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Returns ok if the server is running",
@@ -29,6 +75,90 @@
                             }
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.ClientPriority": {
+            "type": "string",
+            "enum": [
+                "prioridade_alta",
+                "prioridade_normal"
+            ],
+            "x-enum-varnames": [
+                "PriorityHigh",
+                "PriorityNormal"
+            ]
+        },
+        "models.ClientResponse": {
+            "type": "object",
+            "properties": {
+                "cliente_email": {
+                    "type": "string"
+                },
+                "cliente_nome": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "prioridade": {
+                    "$ref": "#/definitions/models.ClientPriority"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.ClientStatus"
+                },
+                "tipo_solicitacao": {
+                    "type": "string"
+                },
+                "valor_patrimonio": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.ClientStatus": {
+            "type": "string",
+            "enum": [
+                "Aguardando Análise",
+                "Processado"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusProcessed"
+            ]
+        },
+        "models.CreateClientRequest": {
+            "type": "object",
+            "required": [
+                "cliente_email",
+                "cliente_nome",
+                "tipo_solicitacao",
+                "valor_patrimonio"
+            ],
+            "properties": {
+                "cliente_email": {
+                    "type": "string"
+                },
+                "cliente_nome": {
+                    "type": "string"
+                },
+                "tipo_solicitacao": {
+                    "type": "string"
+                },
+                "valor_patrimonio": {
+                    "type": "number"
+                }
+            }
+        },
+        "pkg.Response-models_ClientResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/models.ClientResponse"
+                },
+                "error": {
+                    "type": "string"
                 }
             }
         }

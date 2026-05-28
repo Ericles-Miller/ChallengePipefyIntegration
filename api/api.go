@@ -13,6 +13,8 @@ func NewServer(pool *pgxpool.Pool) *gin.Engine {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.GET("/health", healthHandler)
 
+	buildClientController(pool).RegisterRoutes(router)
+
 	return router
 }
 

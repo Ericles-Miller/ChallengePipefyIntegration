@@ -1,12 +1,12 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "internal/users/queries/user.sql"
+    queries: "internal/clients/queries/client.sql"
     schema: "internal/database/migrations"
     gen:
       go:
-        package: "userdb"
-        out: "internal/users/db"
+        package: "clientdb"
+        out: "internal/clients/db"
         sql_package: "pgx/v5"
         emit_json_tags: true
         overrides:
@@ -14,3 +14,5 @@ sql:
             go_type: "github.com/google/uuid.UUID"
           - db_type: "pg_catalog.timestamptz"
             go_type: "time.Time"
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"
