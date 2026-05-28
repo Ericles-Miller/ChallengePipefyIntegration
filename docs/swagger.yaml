@@ -36,12 +36,16 @@ definitions:
   models.CreateClientRequest:
     properties:
       cliente_email:
+        maxLength: 255
         type: string
       cliente_nome:
+        maxLength: 255
         type: string
       tipo_solicitacao:
+        maxLength: 255
         type: string
       valor_patrimonio:
+        maximum: 9999999999999
         type: number
     required:
     - cliente_email
@@ -49,10 +53,49 @@ definitions:
     - tipo_solicitacao
     - valor_patrimonio
     type: object
+  models.WebhookEventRequest:
+    properties:
+      card_id:
+        maxLength: 255
+        type: string
+      cliente_email:
+        maxLength: 255
+        type: string
+      event_id:
+        maxLength: 255
+        type: string
+      timestamp:
+        type: string
+    required:
+    - card_id
+    - cliente_email
+    - event_id
+    - timestamp
+    type: object
+  models.WebhookEventResponse:
+    properties:
+      cliente_email:
+        type: string
+      event_id:
+        type: string
+      prioridade:
+        $ref: '#/definitions/models.ClientPriority'
+      processed_at:
+        type: string
+      status:
+        $ref: '#/definitions/models.ClientStatus'
+    type: object
   pkg.Response-models_ClientResponse:
     properties:
       data:
         $ref: '#/definitions/models.ClientResponse'
+      error:
+        type: string
+    type: object
+  pkg.Response-models_WebhookEventResponse:
+    properties:
+      data:
+        $ref: '#/definitions/models.WebhookEventResponse'
       error:
         type: string
     type: object
@@ -86,6 +129,10 @@ paths:
           description: Bad request
           schema:
             $ref: '#/definitions/pkg.Response-models_ClientResponse'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/pkg.Response-models_ClientResponse'
         "500":
           description: Internal server error
           schema:
@@ -108,4 +155,39 @@ paths:
       summary: Health check
       tags:
       - health
+  /webhooks/pipefy/card-updated:
+    post:
+      consumes:
+      - application/json
+      description: Receives a webhook event from Pipefy, applies priority rules and
+        updates the client status
+      parameters:
+      - description: Webhook event data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.WebhookEventRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Processed
+          schema:
+            $ref: '#/definitions/pkg.Response-models_WebhookEventResponse'
+        "400":
+          description: Bad request or duplicate event
+          schema:
+            $ref: '#/definitions/pkg.Response-models_WebhookEventResponse'
+        "404":
+          description: Client not found
+          schema:
+            $ref: '#/definitions/pkg.Response-models_WebhookEventResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/pkg.Response-models_WebhookEventResponse'
+      summary: Process Pipefy card update event
+      tags:
+      - webhooks
 swagger: "2.0"
