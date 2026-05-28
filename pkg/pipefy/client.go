@@ -41,7 +41,7 @@ mutation MoveCardToPhase($cardId: ID!, $phaseId: ID!) {
 }`
 
 const mutationUpdateCardField = `
-mutation UpdateCardField($cardId: ID!, $fieldId: String!, $newValue: [UndefinedInput]) {
+mutation UpdateCardField($cardId: ID!, $fieldId: ID!, $newValue: [UndefinedInput]) {
   updateCardField(input: {
     card_id: $cardId
     field_id: $fieldId
