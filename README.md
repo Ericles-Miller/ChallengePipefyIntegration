@@ -10,7 +10,7 @@ API em Go para gerenciamento de clientes e integração com o Pipefy via GraphQL
 - **sqlc** — geração de código type-safe a partir de SQL
 - **Goose** — migrations de banco de dados
 - **Docker / Docker Compose** — infraestrutura local
-
+- **Swagger** - documentação da aplicação
 ---
 
 ## Estrutura de Pastas
@@ -284,8 +284,7 @@ Em um ambiente de produção na AWS, a arquitetura escalaria da seguinte forma:
 - Para o webhook especificamente, o API Gateway pode entregar o evento para uma fila **SQS** antes do Lambda. Isso garante que, mesmo com pico de chamadas do Pipefy, nenhum evento seja perdido, e o Lambda processa na velocidade que conseguir (desacoplamento e resiliência).
 
 ### Persistência
-- **RDS (PostgreSQL)** para manter a mesma estrutura relacional atual, com Multi-AZ para alta disponibilidade.
-- Alternativamente, **DynamoDB** para a tabela de `webhook_events` (chave primária = `event_id`), aproveitando a verificação de idempotência em O(1) com throughput praticamente ilimitado.
+- **RDS (PostgreSQL)** para manter a mesma estrutura relacional atual, com alta disponibilidade.
 
 ### Idempotência em escala
 - Com múltiplas instâncias Lambda processando webhooks em paralelo, a idempotência é garantida pelo `event_id` como chave primária no banco — o banco rejeita inserções duplicadas mesmo sob concorrência.
