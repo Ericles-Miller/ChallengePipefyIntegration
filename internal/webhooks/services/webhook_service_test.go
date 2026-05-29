@@ -14,6 +14,7 @@ import (
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -54,16 +55,16 @@ func (m *mockWebhookClientRepo) WithTx(_ pgx.Tx) clientRepositories.ClientReposi
 }
 
 type mockWebhookRepo struct {
-	insertEventFn  func(ctx context.Context, eventID, cardID, clientEmail string) (webhookdb.WebhookEvent, error)
-	getEventByIDFn func(ctx context.Context, eventID string) (webhookdb.WebhookEvent, error)
+	insertEventFn func(ctx context.Context, eventID, cardID, clientEmail string) (webhookdb.WebhookEvent, error)
 }
 
 func (m *mockWebhookRepo) InsertEvent(ctx context.Context, eventID, cardID, clientEmail string) (webhookdb.WebhookEvent, error) {
 	return m.insertEventFn(ctx, eventID, cardID, clientEmail)
 }
 
-func (m *mockWebhookRepo) GetEventByID(ctx context.Context, eventID string) (webhookdb.WebhookEvent, error) {
-	return m.getEventByIDFn(ctx, eventID)
+// GetEventByID não é mais chamado pelo service — panic sinaliza uso inesperado.
+func (m *mockWebhookRepo) GetEventByID(_ context.Context, _ string) (webhookdb.WebhookEvent, error) {
+	panic("GetEventByID not expected in webhook service tests")
 }
 
 func (m *mockWebhookRepo) WithTx(_ pgx.Tx) webhookRepositories.WebhookRepository {
@@ -113,6 +114,16 @@ func stubInsertEvent(eventID, cardID, clientEmail string) func(context.Context, 
 	}
 }
 
+func stubClient(email string, patrimony float64) func(context.Context, string) (*clientModels.ClientResponse, error) {
+	return func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
+		return &clientModels.ClientResponse{Email: email, PatrimonyValue: patrimony}, nil
+	}
+}
+
+func stubUpdateClient(_ context.Context, email string, status clientModels.ClientStatus, priority clientModels.ClientPriority) (*clientModels.ClientResponse, error) {
+	return &clientModels.ClientResponse{Email: email, Status: status, Priority: priority}, nil
+}
+
 // --- tests ---
 
 // TestProcessEvent_HighPriority verifica que valor_patrimonio >= 200.000 resulta em prioridade_alta.
@@ -124,23 +135,15 @@ func TestProcessEvent_HighPriority(t *testing.T) {
 		Timestamp:   time.Now(),
 	}
 
-	webhookRepo := &mockWebhookRepo{
-		getEventByIDFn: func(_ context.Context, _ string) (webhookdb.WebhookEvent, error) {
-			return webhookdb.WebhookEvent{}, pgx.ErrNoRows
+	svc := newWebhookService(
+		&mockWebhookRepo{insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail)},
+		&mockWebhookClientRepo{
+			getByEmailFn:   stubClient(req.ClientEmail, 250000),
+			updateClientFn: stubUpdateClient,
 		},
-		insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail),
-	}
+		newSuccessfulPipefy(),
+	)
 
-	clientRepo := &mockWebhookClientRepo{
-		getByEmailFn: func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: req.ClientEmail, PatrimonyValue: 250000}, nil
-		},
-		updateClientFn: func(_ context.Context, email string, status clientModels.ClientStatus, priority clientModels.ClientPriority) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: email, Status: status, Priority: priority}, nil
-		},
-	}
-
-	svc := newWebhookService(webhookRepo, clientRepo, newSuccessfulPipefy())
 	resp, err := svc.ProcessEvent(context.Background(), req)
 
 	if err != nil {
@@ -163,23 +166,15 @@ func TestProcessEvent_NormalPriority(t *testing.T) {
 		Timestamp:   time.Now(),
 	}
 
-	webhookRepo := &mockWebhookRepo{
-		getEventByIDFn: func(_ context.Context, _ string) (webhookdb.WebhookEvent, error) {
-			return webhookdb.WebhookEvent{}, pgx.ErrNoRows
+	svc := newWebhookService(
+		&mockWebhookRepo{insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail)},
+		&mockWebhookClientRepo{
+			getByEmailFn:   stubClient(req.ClientEmail, 150000),
+			updateClientFn: stubUpdateClient,
 		},
-		insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail),
-	}
+		newSuccessfulPipefy(),
+	)
 
-	clientRepo := &mockWebhookClientRepo{
-		getByEmailFn: func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: req.ClientEmail, PatrimonyValue: 150000}, nil
-		},
-		updateClientFn: func(_ context.Context, email string, status clientModels.ClientStatus, priority clientModels.ClientPriority) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: email, Status: status, Priority: priority}, nil
-		},
-	}
-
-	svc := newWebhookService(webhookRepo, clientRepo, newSuccessfulPipefy())
 	resp, err := svc.ProcessEvent(context.Background(), req)
 
 	if err != nil {
@@ -202,23 +197,15 @@ func TestProcessEvent_PriorityBoundary(t *testing.T) {
 		Timestamp:   time.Now(),
 	}
 
-	webhookRepo := &mockWebhookRepo{
-		getEventByIDFn: func(_ context.Context, _ string) (webhookdb.WebhookEvent, error) {
-			return webhookdb.WebhookEvent{}, pgx.ErrNoRows
+	svc := newWebhookService(
+		&mockWebhookRepo{insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail)},
+		&mockWebhookClientRepo{
+			getByEmailFn:   stubClient(req.ClientEmail, 200000),
+			updateClientFn: stubUpdateClient,
 		},
-		insertEventFn: stubInsertEvent(req.EventID, req.CardID, req.ClientEmail),
-	}
+		newSuccessfulPipefy(),
+	)
 
-	clientRepo := &mockWebhookClientRepo{
-		getByEmailFn: func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: req.ClientEmail, PatrimonyValue: 200000}, nil
-		},
-		updateClientFn: func(_ context.Context, email string, status clientModels.ClientStatus, priority clientModels.ClientPriority) (*clientModels.ClientResponse, error) {
-			return &clientModels.ClientResponse{Email: email, Status: status, Priority: priority}, nil
-		},
-	}
-
-	svc := newWebhookService(webhookRepo, clientRepo, newSuccessfulPipefy())
 	resp, err := svc.ProcessEvent(context.Background(), req)
 
 	if err != nil {
@@ -229,7 +216,8 @@ func TestProcessEvent_PriorityBoundary(t *testing.T) {
 	}
 }
 
-// TestProcessEvent_DuplicateEventID verifica que reenviar um event_id já processado é bloqueado (idempotência).
+// TestProcessEvent_DuplicateEventID verifica que reenviar um event_id já processado é bloqueado.
+// A detecção agora é feita pelo banco via unique violation no INSERT, não por SELECT prévio.
 func TestProcessEvent_DuplicateEventID(t *testing.T) {
 	req := webhookModels.WebhookEventRequest{
 		EventID:     "evt_duplicate",
@@ -238,16 +226,19 @@ func TestProcessEvent_DuplicateEventID(t *testing.T) {
 		Timestamp:   time.Now(),
 	}
 
-	webhookRepo := &mockWebhookRepo{
-		getEventByIDFn: func(_ context.Context, eventID string) (webhookdb.WebhookEvent, error) {
-			return webhookdb.WebhookEvent{
-				EventID:     eventID,
-				ProcessedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-			}, nil
+	svc := newWebhookService(
+		&mockWebhookRepo{
+			insertEventFn: func(_ context.Context, _, _, _ string) (webhookdb.WebhookEvent, error) {
+				// simula unique violation do banco quando event_id já existe
+				return webhookdb.WebhookEvent{}, &pgconn.PgError{Code: "23505"}
+			},
 		},
-	}
+		&mockWebhookClientRepo{
+			getByEmailFn: stubClient(req.ClientEmail, 250000),
+		},
+		newSuccessfulPipefy(),
+	)
 
-	svc := newWebhookService(webhookRepo, &mockWebhookClientRepo{}, newSuccessfulPipefy())
 	_, err := svc.ProcessEvent(context.Background(), req)
 
 	if err == nil {
@@ -267,19 +258,16 @@ func TestProcessEvent_ClientNotFound(t *testing.T) {
 		Timestamp:   time.Now(),
 	}
 
-	webhookRepo := &mockWebhookRepo{
-		getEventByIDFn: func(_ context.Context, _ string) (webhookdb.WebhookEvent, error) {
-			return webhookdb.WebhookEvent{}, pgx.ErrNoRows
+	svc := newWebhookService(
+		&mockWebhookRepo{},
+		&mockWebhookClientRepo{
+			getByEmailFn: func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
+				return nil, errors.New("not found")
+			},
 		},
-	}
+		newSuccessfulPipefy(),
+	)
 
-	clientRepo := &mockWebhookClientRepo{
-		getByEmailFn: func(_ context.Context, _ string) (*clientModels.ClientResponse, error) {
-			return nil, errors.New("not found")
-		},
-	}
-
-	svc := newWebhookService(webhookRepo, clientRepo, newSuccessfulPipefy())
 	_, err := svc.ProcessEvent(context.Background(), req)
 
 	if err == nil {
