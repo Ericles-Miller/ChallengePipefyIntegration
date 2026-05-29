@@ -4,12 +4,14 @@ import (
 	"context"
 
 	webhookdb "github.com/Ericles-Miller/ChallengePipefyIntegration/internal/webhooks/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type WebhookRepository interface {
 	InsertEvent(ctx context.Context, eventID, cardID, clientEmail string) (webhookdb.WebhookEvent, error)
 	GetEventByID(ctx context.Context, eventID string) (webhookdb.WebhookEvent, error)
+	WithTx(tx pgx.Tx) WebhookRepository
 }
 
 type webhookRepository struct {
@@ -30,4 +32,8 @@ func (r *webhookRepository) InsertEvent(ctx context.Context, eventID, cardID, cl
 
 func (r *webhookRepository) GetEventByID(ctx context.Context, eventID string) (webhookdb.WebhookEvent, error) {
 	return r.queries.GetWebhookEventByID(ctx, eventID)
+}
+
+func (r *webhookRepository) WithTx(tx pgx.Tx) WebhookRepository {
+	return &webhookRepository{queries: r.queries.WithTx(tx)}
 }

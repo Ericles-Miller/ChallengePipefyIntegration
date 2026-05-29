@@ -95,6 +95,9 @@ func (c *pipefyClient) CreateCard(ctx context.Context, name, email, requestType 
 	}
 
 	card := result.Data.CreateCard.Card
+	if card.ID == "" {
+		return nil, fmt.Errorf("pipefy: createCard returned no card — check token and pipe ID")
+	}
 	return &card, nil
 }
 
@@ -142,6 +145,13 @@ func (c *pipefyClient) do(ctx context.Context, query string, variables map[strin
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("pipefy: failed to read response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: HTTP %d", ErrUnauthorized, resp.StatusCode)
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("pipefy: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var errCheck struct {

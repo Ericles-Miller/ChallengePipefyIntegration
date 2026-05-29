@@ -11,9 +11,14 @@ import (
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const highPriorityThreshold = 200_000.0
+
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 type WebhookService interface {
 	ProcessEvent(ctx context.Context, req webhookModels.WebhookEventRequest) (*webhookModels.WebhookEventResponse, error)
@@ -23,10 +28,16 @@ type webhookService struct {
 	webhookRepo webhookRepositories.WebhookRepository
 	clientRepo  clientRepositories.ClientRepository
 	pipefy      pipefy.PipefyClient
+	db          txBeginner
 }
 
-func NewWebhookService(webhookRepo webhookRepositories.WebhookRepository, clientRepo clientRepositories.ClientRepository, pipefy pipefy.PipefyClient) WebhookService {
-	return &webhookService{webhookRepo: webhookRepo, clientRepo: clientRepo, pipefy: pipefy}
+func NewWebhookService(
+	webhookRepo webhookRepositories.WebhookRepository,
+	clientRepo clientRepositories.ClientRepository,
+	pipefy pipefy.PipefyClient,
+	pool *pgxpool.Pool,
+) WebhookService {
+	return &webhookService{webhookRepo: webhookRepo, clientRepo: clientRepo, pipefy: pipefy, db: pool}
 }
 
 func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.WebhookEventRequest) (*webhookModels.WebhookEventResponse, error) {
@@ -34,7 +45,6 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, AppError.New("failed to check existing event", AppError.ErrInternalServer)
 	}
-
 	if err == nil {
 		return nil, AppError.New("event already processed", AppError.ErrBadRequest)
 	}
@@ -49,22 +59,38 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 		priority = clientModels.PriorityHigh
 	}
 
-	updatedClient, err := s.clientRepo.UpdateClient(ctx, req.ClientEmail, clientModels.StatusProcessed, priority)
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, AppError.New("failed to start transaction", AppError.ErrInternalServer)
+	}
+	defer tx.Rollback(ctx)
+
+	updatedClient, err := s.clientRepo.WithTx(tx).UpdateClient(ctx, req.ClientEmail, clientModels.StatusProcessed, priority)
 	if err != nil {
 		return nil, AppError.New("failed to update client", AppError.ErrInternalServer)
 	}
 
 	if err := s.pipefy.MoveCardToProcessed(ctx, req.CardID); err != nil {
+		if errors.Is(err, pipefy.ErrUnauthorized) {
+			return nil, AppError.New("invalid Pipefy credentials", AppError.ErrUnauthorized)
+		}
 		return nil, AppError.New("failed to move Pipefy card to phase", AppError.ErrInternalServer)
 	}
 
 	if err := s.pipefy.UpdateCardField(ctx, req.CardID, pipefy.FieldPriority, string(priority)); err != nil {
+		if errors.Is(err, pipefy.ErrUnauthorized) {
+			return nil, AppError.New("invalid Pipefy credentials", AppError.ErrUnauthorized)
+		}
 		return nil, AppError.New("failed to update Pipefy card priority", AppError.ErrInternalServer)
 	}
 
-	event, err := s.webhookRepo.InsertEvent(ctx, req.EventID, req.CardID, req.ClientEmail)
+	event, err := s.webhookRepo.WithTx(tx).InsertEvent(ctx, req.EventID, req.CardID, req.ClientEmail)
 	if err != nil {
 		return nil, AppError.New("failed to save event", AppError.ErrInternalServer)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, AppError.New("failed to commit transaction", AppError.ErrInternalServer)
 	}
 
 	return &webhookModels.WebhookEventResponse{
