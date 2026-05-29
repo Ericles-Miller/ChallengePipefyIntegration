@@ -11,10 +11,14 @@ import (
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const highPriorityThreshold = 200_000.0
+const (
+	highPriorityThreshold  = 200_000.0
+	pgUniqueViolationCode  = "23505"
+)
 
 type txBeginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
@@ -41,14 +45,6 @@ func NewWebhookService(
 }
 
 func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.WebhookEventRequest) (*webhookModels.WebhookEventResponse, error) {
-	_, err := s.webhookRepo.GetEventByID(ctx, req.EventID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, AppError.New("failed to check existing event", AppError.ErrInternalServer)
-	}
-	if err == nil {
-		return nil, AppError.New("event already processed", AppError.ErrBadRequest)
-	}
-
 	client, err := s.clientRepo.GetByEmail(ctx, req.ClientEmail)
 	if err != nil {
 		return nil, AppError.New("client not found", AppError.ErrNotFound)
@@ -64,6 +60,14 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 		return nil, AppError.New("failed to start transaction", AppError.ErrInternalServer)
 	}
 	defer tx.Rollback(ctx)
+
+	event, err := s.webhookRepo.WithTx(tx).InsertEvent(ctx, req.EventID, req.CardID, req.ClientEmail)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, AppError.New("event already processed", AppError.ErrBadRequest)
+		}
+		return nil, AppError.New("failed to claim event", AppError.ErrInternalServer)
+	}
 
 	updatedClient, err := s.clientRepo.WithTx(tx).UpdateClient(ctx, req.ClientEmail, clientModels.StatusProcessed, priority)
 	if err != nil {
@@ -84,11 +88,6 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 		return nil, AppError.New("failed to update Pipefy card priority", AppError.ErrInternalServer)
 	}
 
-	event, err := s.webhookRepo.WithTx(tx).InsertEvent(ctx, req.EventID, req.CardID, req.ClientEmail)
-	if err != nil {
-		return nil, AppError.New("failed to save event", AppError.ErrInternalServer)
-	}
-
 	if err := tx.Commit(ctx); err != nil {
 		return nil, AppError.New("failed to commit transaction", AppError.ErrInternalServer)
 	}
@@ -100,4 +99,9 @@ func (s *webhookService) ProcessEvent(ctx context.Context, req webhookModels.Web
 		Priority:    updatedClient.Priority,
 		ProcessedAt: event.ProcessedAt.Time,
 	}, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolationCode
 }
