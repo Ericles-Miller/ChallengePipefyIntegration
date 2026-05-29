@@ -5,6 +5,7 @@ import (
 
 	clientdb "github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/db"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -13,6 +14,7 @@ type ClientRepository interface {
 	Create(ctx context.Context, req models.CreateClientRequest) (*models.ClientResponse, error)
 	GetByEmail(ctx context.Context, email string) (*models.ClientResponse, error)
 	UpdateClient(ctx context.Context, email string, status models.ClientStatus, priority models.ClientPriority) (*models.ClientResponse, error)
+	WithTx(tx pgx.Tx) ClientRepository
 }
 
 type clientRepository struct {
@@ -58,6 +60,10 @@ func (r *clientRepository) UpdateClient(ctx context.Context, email string, statu
 	}
 
 	return models.ToResponse(client), nil
+}
+
+func (r *clientRepository) WithTx(tx pgx.Tx) ClientRepository {
+	return &clientRepository{queries: r.queries.WithTx(tx)}
 }
 
 

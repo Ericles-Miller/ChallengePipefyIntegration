@@ -36,6 +36,7 @@ func (c *WebhookController) RegisterRoutes(r *gin.Engine) {
 // @Success     200     {object} pkg.Response[webhookModels.WebhookEventResponse] "Processed"
 // @Failure     400     {object} pkg.Response[webhookModels.WebhookEventResponse] "Bad request or duplicate event"
 // @Failure     404     {object} pkg.Response[webhookModels.WebhookEventResponse] "Client not found"
+// @Failure     401     {object} pkg.Response[webhookModels.WebhookEventResponse] "Unauthorized"
 // @Failure     500     {object} pkg.Response[webhookModels.WebhookEventResponse] "Internal server error"
 // @Router      /webhooks/pipefy/card-updated [post]
 func (c *WebhookController) CardUpdated(ctx *gin.Context) {
@@ -53,6 +54,8 @@ func (c *WebhookController) CardUpdated(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, pkg.Fail[*webhookModels.WebhookEventResponse](err.Error()))
 		case errors.Is(err, AppError.ErrNotFound):
 			ctx.JSON(http.StatusNotFound, pkg.Fail[*webhookModels.WebhookEventResponse](err.Error()))
+		case errors.Is(err, AppError.ErrUnauthorized):
+			ctx.JSON(http.StatusUnauthorized, pkg.Fail[*webhookModels.WebhookEventResponse](err.Error()))
 		default:
 			ctx.JSON(http.StatusInternalServerError, pkg.Fail[*webhookModels.WebhookEventResponse](err.Error()))
 		}
