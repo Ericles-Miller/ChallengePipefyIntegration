@@ -129,6 +129,10 @@ paths:
           description: Bad request
           schema:
             $ref: '#/definitions/pkg.Response-models_ClientResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/pkg.Response-models_ClientResponse'
         "404":
           description: Not found
           schema:

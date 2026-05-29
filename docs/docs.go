@@ -52,6 +52,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/pkg.Response-models_ClientResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/pkg.Response-models_ClientResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not found",
                         "schema": {

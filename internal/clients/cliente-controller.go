@@ -35,6 +35,7 @@ func (c *ClientController) RegisterRoutes(r *gin.Engine) {
 // @Param       request body     models.CreateClientRequest          true "Client data"
 // @Success     201     {object} pkg.Response[models.ClientResponse] "Created"
 // @Failure     400     {object} pkg.Response[models.ClientResponse] "Bad request"
+// @Failure     401     {object} pkg.Response[models.ClientResponse] "Unauthorized"
 // @Failure     404     {object} pkg.Response[models.ClientResponse] "Not found"
 // @Failure     500     {object} pkg.Response[models.ClientResponse] "Internal server error"
 // @Router      /clientes [post]
@@ -53,6 +54,8 @@ func (c *ClientController) CreateClient(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, pkg.Fail[*models.ClientResponse](err.Error()))
 		case errors.Is(err, AppError.ErrNotFound):
 			ctx.JSON(http.StatusNotFound, pkg.Fail[*models.ClientResponse](err.Error()))
+		case errors.Is(err, AppError.ErrUnauthorized):
+			ctx.JSON(http.StatusUnauthorized, pkg.Fail[*models.ClientResponse](err.Error()))
 		default:
 			ctx.JSON(http.StatusInternalServerError, pkg.Fail[*models.ClientResponse](err.Error()))
 		}

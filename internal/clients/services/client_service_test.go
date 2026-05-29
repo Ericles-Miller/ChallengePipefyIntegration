@@ -6,12 +6,28 @@ import (
 	"testing"
 
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/models"
+	"github.com/Ericles-Miller/ChallengePipefyIntegration/internal/clients/repositories"
 	AppError "github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/appError"
 	"github.com/Ericles-Miller/ChallengePipefyIntegration/pkg/pipefy"
 	"github.com/jackc/pgx/v5"
 )
 
-// --- mock implementations ---
+// --- mock transaction ---
+
+// noopTx implementa pgx.Tx apenas para Commit e Rollback.
+// Os demais métodos nunca são chamados nos testes porque os repos já são mocks.
+type noopTx struct{ pgx.Tx }
+
+func (t *noopTx) Commit(_ context.Context) error   { return nil }
+func (t *noopTx) Rollback(_ context.Context) error { return nil }
+
+type mockTxBeginner struct{}
+
+func (m *mockTxBeginner) Begin(_ context.Context) (pgx.Tx, error) {
+	return &noopTx{}, nil
+}
+
+// --- mock repository ---
 
 type mockClientRepo struct {
 	createFn       func(ctx context.Context, req models.CreateClientRequest) (*models.ClientResponse, error)
@@ -31,6 +47,12 @@ func (m *mockClientRepo) UpdateClient(ctx context.Context, email string, status 
 	return m.updateClientFn(ctx, email, status, priority)
 }
 
+func (m *mockClientRepo) WithTx(_ pgx.Tx) repositories.ClientRepository {
+	return m
+}
+
+// --- mock pipefy ---
+
 type mockPipefyClient struct {
 	createCardFn          func(ctx context.Context, name, email, requestType string, patrimony float64) (*pipefy.CardResult, error)
 	moveCardToProcessedFn func(ctx context.Context, cardID string) error
@@ -49,9 +71,15 @@ func (m *mockPipefyClient) UpdateCardField(ctx context.Context, cardID, fieldID,
 	return m.updateCardFieldFn(ctx, cardID, fieldID, value)
 }
 
+// --- helpers ---
+
+func newClientService(repo *mockClientRepo, p *mockPipefyClient) ClientService {
+	return &clientService{repo: repo, pipefy: p, db: &mockTxBeginner{}}
+}
+
 // --- tests ---
 
-// TestCreateClient_Success verifies that a client is created and persisted with status "Aguardando Análise".
+// TestCreateClient_Success verifica que o cliente é criado e persistido com status "Aguardando Análise".
 func TestCreateClient_Success(t *testing.T) {
 	req := models.CreateClientRequest{
 		Name:           "João Silva",
@@ -73,7 +101,7 @@ func TestCreateClient_Success(t *testing.T) {
 		getByEmailFn: func(_ context.Context, _ string) (*models.ClientResponse, error) {
 			return nil, pgx.ErrNoRows
 		},
-		createFn: func(_ context.Context, r models.CreateClientRequest) (*models.ClientResponse, error) {
+		createFn: func(_ context.Context, _ models.CreateClientRequest) (*models.ClientResponse, error) {
 			return saved, nil
 		},
 	}
@@ -84,7 +112,7 @@ func TestCreateClient_Success(t *testing.T) {
 		},
 	}
 
-	svc := NewClientService(repo, pipefyClient)
+	svc := newClientService(repo, pipefyClient)
 	got, err := svc.CreateClient(context.Background(), req)
 
 	if err != nil {
@@ -104,7 +132,7 @@ func TestCreateClient_Success(t *testing.T) {
 	}
 }
 
-// TestCreateClient_DuplicateEmail verifies that creating a client with an already-registered email returns ErrBadRequest.
+// TestCreateClient_DuplicateEmail verifica que e-mail já cadastrado retorna ErrBadRequest.
 func TestCreateClient_DuplicateEmail(t *testing.T) {
 	req := models.CreateClientRequest{
 		Name:           "João Silva",
@@ -119,7 +147,7 @@ func TestCreateClient_DuplicateEmail(t *testing.T) {
 		},
 	}
 
-	svc := NewClientService(repo, &mockPipefyClient{})
+	svc := newClientService(repo, &mockPipefyClient{})
 	_, err := svc.CreateClient(context.Background(), req)
 
 	if err == nil {
@@ -130,7 +158,7 @@ func TestCreateClient_DuplicateEmail(t *testing.T) {
 	}
 }
 
-// TestCreateClient_PipefyError verifies that a Pipefy failure is propagated as ErrInternalServer.
+// TestCreateClient_PipefyError verifica que falha no Pipefy faz rollback e retorna ErrInternalServer.
 func TestCreateClient_PipefyError(t *testing.T) {
 	req := models.CreateClientRequest{
 		Name:           "João Silva",
@@ -154,7 +182,7 @@ func TestCreateClient_PipefyError(t *testing.T) {
 		},
 	}
 
-	svc := NewClientService(repo, pipefyClient)
+	svc := newClientService(repo, pipefyClient)
 	_, err := svc.CreateClient(context.Background(), req)
 
 	if err == nil {

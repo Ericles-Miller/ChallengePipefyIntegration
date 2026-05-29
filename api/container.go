@@ -14,7 +14,7 @@ import (
 func buildClientController(pool *pgxpool.Pool) *clients.ClientController {
 	repo        := clientRepositories.NewClientRepository(pool)
 	pipefyClient := pipefy.NewPipefyClient()
-	service     := clientServices.NewClientService(repo, pipefyClient)
+	service     := clientServices.NewClientService(repo, pipefyClient, pool)
 	return clients.NewClientController(service)
 }
 
@@ -22,6 +22,6 @@ func buildWebhookController(pool *pgxpool.Pool) *webhooks.WebhookController {
 	clientRepo   := clientRepositories.NewClientRepository(pool)
 	webhookRepo  := webhookRepositories.NewWebhookRepository(pool)
 	pipefyClient := pipefy.NewPipefyClient()
-	service      := webhookServices.NewWebhookService(webhookRepo, clientRepo, pipefyClient)
+	service      := webhookServices.NewWebhookService(webhookRepo, clientRepo, pipefyClient, pool)
 	return webhooks.NewWebhookController(service)
 }
